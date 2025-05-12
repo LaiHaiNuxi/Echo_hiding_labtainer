@@ -1,0 +1,58 @@
+#
+# Labtainer Dockerfile for Echo Hiding Steganography Lab
+#
+# This Dockerfile sets up a Labtainer container for the echo hiding steganography lab.
+# It uses the labtainer.base2 image and installs dependencies for Python scripts.
+#
+
+ARG registry
+FROM $registry/labtainer.base2
+
+# Arguments passed from Labtainer
+ARG lab
+ARG labdir
+ARG imagedir
+ARG user_name
+ARG password
+ARG apt_source
+ARG version
+LABEL version=$version
+ENV APT_SOURCE $apt_source
+
+# Configure apt source
+RUN /usr/bin/apt-source.sh
+
+# Install required packages for the lab
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-numpy \
+    python3-scipy \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies via pip
+RUN pip3 install --no-cache-dir numpy scipy
+
+# Install system files from _system directory
+ADD $labdir/$imagedir/sys_tar/sys.tar /
+ADD $labdir/sys_$lab.tar.gz /
+
+# Create user and set password
+RUN useradd -ms /bin/bash $user_name \
+    && echo "$user_name:$password" | chpasswd \
+    && adduser $user_name sudo
+
+# Switch to user
+USER $user_name
+ENV HOME /home/$user_name
+
+# Install files in the user home directory
+ADD $labdir/$imagedir/home_tar/home.tar $HOME
+# Remove empty tar (Labtainer workaround)
+RUN rm -f $HOME/home.tar
+ADD $labdir/$lab.tar.gz $HOME
+
+# Switch back to root for CMD
+USER root
+# Start the container
+CMD ["/bin/bash", "-c", "exec /sbin/init --log-target=journal 3>&1"]
